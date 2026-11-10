@@ -70,10 +70,61 @@ export function createDarknessEyes() {
   const shadow = overlay(silhouetteTexture, '#ffffff', true);
   shadow.name = 'Darkness_Passing_Shadow';
   shadow.scale.set(1.15, 2.1, 1);
+  const lurker = document.createElement('canvas');
+  lurker.width = 128; lurker.height = 192;
+  const shade = lurker.getContext('2d')!;
+  shade.fillStyle = '#0b1017';
+  shade.beginPath();
+  // Wide hooked horns and a low head avoid reading as a pointed wizard hat.
+  shade.moveTo(50, 52);
+  shade.quadraticCurveTo(38, 42, 27, 18);
+  shade.lineTo(17, 7);
+  shade.lineTo(20, 30);
+  shade.quadraticCurveTo(27, 55, 45, 65);
+  shade.quadraticCurveTo(27, 68, 19, 88);
+  shade.quadraticCurveTo(39, 82, 49, 91);
+  shade.quadraticCurveTo(38, 129, 35, 180);
+  shade.lineTo(51, 158);
+  shade.lineTo(62, 190);
+  shade.lineTo(73, 157);
+  shade.lineTo(92, 181);
+  shade.quadraticCurveTo(89, 128, 79, 91);
+  shade.quadraticCurveTo(90, 82, 109, 88);
+  shade.quadraticCurveTo(101, 68, 83, 65);
+  shade.quadraticCurveTo(101, 55, 108, 30);
+  shade.lineTo(111, 7);
+  shade.lineTo(101, 18);
+  shade.quadraticCurveTo(90, 42, 78, 52);
+  shade.quadraticCurveTo(64, 38, 50, 52);
+  shade.fill();
+  shade.strokeStyle = '#0b1017';
+  shade.lineWidth = 11;
+  shade.lineCap = 'round';
+  for (const side of [-1, 1]) {
+    shade.beginPath();
+    shade.moveTo(64 + side * 27, 76);
+    shade.quadraticCurveTo(64 + side * 48, 98, 64 + side * 54, 137);
+    shade.stroke();
+    shade.lineWidth = 4;
+    for (let finger = -1; finger <= 1; finger++) {
+      shade.beginPath();
+      shade.moveTo(64 + side * 54, 134);
+      shade.lineTo(64 + side * (61 + Math.abs(finger) * 2), 151 + finger * 7);
+      shade.stroke();
+    }
+    shade.lineWidth = 11;
+  }
+  shade.fillStyle = '#f2a0aa';
+  shade.beginPath();
+  shade.moveTo(45, 57); shade.quadraticCurveTo(53, 64, 61, 58); shade.quadraticCurveTo(53, 70, 45, 57); shade.fill();
+  shade.beginPath();
+  shade.moveTo(83, 57); shade.quadraticCurveTo(75, 64, 67, 58); shade.quadraticCurveTo(75, 70, 83, 57); shade.fill();
+  const lurkerTexture = new THREE.CanvasTexture(lurker);
+  lurkerTexture.colorSpace = THREE.SRGBColorSpace;
   const startled = Array.from({ length: 2 }, (_, i) => {
-    const sprite = overlay(silhouetteTexture, '#0d1219', true);
+    const sprite = overlay(lurkerTexture, '#ffffff', true);
     sprite.name = `Darkness_Startled_Entity_${i + 1}`;
-    sprite.scale.set(1.08, 1.95, 1);
+    sprite.scale.set(1.72, 3.15, 1);
     return sprite;
   });
   let flashes: { at: Vec; born: number; radius: number; direction: number }[] = [];
@@ -130,14 +181,15 @@ export function createDarknessEyes() {
     flashes = flashes.filter(flash => time - flash.born < FLASH_SECONDS);
     flashes.forEach((flash, i) => {
       const sprite = startled[i], age = time - flash.born, progress = THREE.MathUtils.clamp(age / FLASH_SECONDS, 0, 1);
-      const start = flash.radius * .42, travel = quiet ? 0 : flash.radius * .72 * progress * progress;
+      const escape = THREE.MathUtils.clamp(progress + .035 * Math.sin(progress * 22), 0, 1);
+      const start = flash.radius * .42, travel = quiet ? 0 : flash.radius * .84 * escape * escape;
       const distance = start + travel;
       const at = { x: flash.at.x + Math.cos(flash.direction) * distance, y: flash.at.y + Math.sin(flash.direction) * distance };
       const revealed = flashRadius(flash, time) > start * .7;
       sprite.visible = revealed && darkAt(at);
-      sprite.position.set(at.x, .92 + (quiet ? 0 : .12 * Math.sin(progress * Math.PI * 5)), at.y);
-      sprite.scale.set((Math.cos(flash.direction) < 0 ? -1 : 1) * (1.08 - progress * .12), 1.95 + progress * .12, 1);
-      sprite.material.rotation = quiet ? 0 : (Math.cos(flash.direction) < 0 ? -.16 : .16) * Math.sin(Math.PI * progress);
+      sprite.position.set(at.x, 1.48 + (quiet ? 0 : .16 * Math.sin(progress * Math.PI * 5)), at.y);
+      sprite.scale.set((Math.cos(flash.direction) < 0 ? -1 : 1) * (1.72 - progress * .16), 3.15 + progress * .24, 1);
+      sprite.material.rotation = quiet ? 0 : (Math.cos(flash.direction) < 0 ? -.21 : .21) * Math.sin(Math.PI * progress);
       sprite.material.opacity = Math.sin(Math.PI * Math.min(1, progress * 1.18)) * (1 - THREE.MathUtils.smoothstep(progress, .58, 1)) * .88;
     });
 
