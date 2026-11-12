@@ -275,8 +275,13 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     if (!meteor && !winding && ready('warpzone') && dist(threat.pos, me.pos) > 1.2 && reacts(1)) return cast('warpzone', add(me.pos, scale(norm(sub(threat.pos, me.pos)), Math.min(1.5, dist(threat.pos, me.pos) / 2))));
     if (!meteor && !winding && ready('rockpillar') && dist(threat.pos, me.pos) > 1.6 && reacts(1)) return cast('rockpillar', add(me.pos, scale(norm(sub(threat.pos, me.pos)), 1.1)));
     if (!winding && ready('rush') && reacts(0.4) && inside(add(me.pos, scale(away, 3)), 1)) return cast('rush', add(me.pos, scale(away, 3)));
-    // Caminhada no vento: mais rápido para sair do caminho
-    if (!winding && ready('windwalk') && reacts(0.4)) return (cast('windwalk', me.pos), cmds.push({ id, kind: 'move', to: add(me.pos, scale(away, 3)) }), cmds);
+    // Windwalk gets the bot out of the projectile's path faster.
+    if (!winding && ready('windwalk') && reacts(0.4)) {
+      if (me.channel?.spell === 'windwalk') cmds.push({ id, kind: 'stop' });
+      cast('windwalk', me.pos);
+      cmds.push({ id, kind: 'move', to: add(me.pos, scale(away, 3)) });
+      return cmds;
+    }
     if (rand() < D.dodge) cmds.push({ id, kind: 'move', to: add(me.pos, scale(away, 2)) });
   }
   // Bola de fogo no Míssil teleguiado que ainda vem longe: o choque estoura longe do bot (às vezes: precisa de mira)
@@ -489,7 +494,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     return dist(add(me.pos, scale(ab, t)), q.pos) < OBSTACLES[q.kind].r + PROJ_R + 0.1;
   });
   // A stationary aim (CAST_POINT.sniper) never replaces a dodge already decided this think or starts with a shot on the way.
-  if (!threat && !cmds.length && ready('sniper') && d <= spellLevel('sniper', me.spells.sniper).range * me.rangeF && !blocked(E.pos)) return cast('sniper', E.pos);
+  if (!threat && !cmds.length && ready('sniper') && d <= spellLevel('sniper', me.spells.sniper).range * me.rangeF && !blocked(E.pos)) return cast('sniper', E.pos, true);
   // Atacar (decisão do Fernando, 24/10): sem nenhuma magia pronta, com o inimigo a até 6 m e sem obstáculo no meio, o bot usa o
   // ataque livre como o jogador; sem isso o humano teria um golpe que o bot nunca usa e o simulador não mediria o Atacar.
   // Desvio já decidido neste comando vem antes: parar 0,4 s para atacar jogaria fora a esquiva

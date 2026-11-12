@@ -132,6 +132,18 @@ describe('Channeling',()=>{
     expect(cmds).toContainEqual(expect.objectContaining({kind:'cast',spell:'windwalk'}));
     expect(cmds.some(c=>c.kind==='channel')).toBe(false);
   });
+  it('interrupts an offensive Windwalk charge before casting it to dodge',()=>{
+    const w=setup(),z=w.wizards[0];z.spells.windwalk=1;z.spells.shield=0;z.spells.teleport=0;z.channel={spell:'windwalk',since:w.t};
+    w.projectiles.push({id:1,born:-1,kind:'fireball',owner:'p1',caster:'p1',pos:{x:3.5,y:0},vel:{x:-6.47,y:0},level:1,until:9,target:null,dmgMult:1});
+    const cmds=botCmds(w,z.id,()=>.3);
+    expect(cmds).toEqual([
+      {id:z.id,kind:'stop'},
+      expect.objectContaining({kind:'cast',spell:'windwalk'}),
+      expect.objectContaining({kind:'move'}),
+    ]);
+    stepWorld(w,cmds,()=>.5);
+    expect(z.channel).toBeUndefined();expect(z.windUntil).toBeGreaterThan(w.t);
+  });
   it('bots wait through an offensive Windwalk charge before moving',()=>{
     const w=setup(),z=w.wizards[0];z.spells={...noSpells(),channel:1,windwalk:1};w.wizards[1].pos={x:4,y:0};
     const start=botCmds(w,z.id,()=>.5);
@@ -141,6 +153,21 @@ describe('Channeling',()=>{
       {id:z.id,kind:'cast',spell:'windwalk',at:w.wizards[1].pos},
       {id:z.id,kind:'move',to:w.wizards[1].pos},
     ]);
+  });
+  it('bots charge Sniper and release it at full power with Channeling',()=>{
+    const w=setup(),z=w.wizards[0];z.spells={...noSpells(),channel:1,sniper:1};w.wizards[1].pos={x:5,y:0};
+    const start=botCmds(w,z.id,()=>.5);
+    expect(start).toEqual([{id:z.id,kind:'channel',spell:'sniper'}]);
+    stepWorld(w,start,()=>.5);run(w,2.1);
+    const aim=botCmds(w,z.id,()=>.5);
+    expect(aim).toEqual([{id:z.id,kind:'cast',spell:'sniper',at:w.wizards[1].pos}]);
+    stepWorld(w,aim,()=>.5);
+    expect(z.casting?.power).toBe(2);
+    run(w,3.1);
+    const release=botCmds(w,z.id,()=>.5);
+    expect(release).toEqual([{id:z.id,kind:'cast',spell:'sniper',at:w.wizards[1].pos}]);
+    stepWorld(w,release,()=>.5);
+    expect(w.wizards[1].hp).toBe(1000-spellLevel('sniper',1).dmg*2);
   });
   it('normal spells still cast normally without channeling',()=>{
     const w=setup(); stepWorld(w,[cast],()=>.5); run(w,.15);
